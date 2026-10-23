@@ -115,37 +115,28 @@ python web_app.py                                   # 启动 SSE 流式端点 + 
 
 ## 智能客服架构
 
-```
-用户在 C 端发消息
-        │
-        ▼
-ChatWebSocketServer (/ws/chat)
-        │
-   ┌────┴────┐
-   │ 意图识别 │  — 关键词状态机 / LLM 判断
-   └────┬────┘
-   是交易?  ──Yes──▶  tool_chat.py (Python FastAPI)
-        │                    │
-        │              LLM Tool Calling 循环
-        │                    │
-        │              9 个 Java 工具函数
-        │              ┌──────────────────┐
-        │              │ get_cart          │
-        │              │ add_to_cart      │
-        │              │ remove_from_cart │
-        │              │ update_quantity  │
-        │              │ get_menu          │
-        │              │ get_addresses    │
-        │              │ submit_order      │
-        │              │ get_order_status  │
-        │              │ clear_cart       │
-        │              └──────────────────┘
-        │              Java 确定性执行 → 直接查 DB / 改 Redis
-        │                    │
-        │              流式回传: Python SSE → Java HTTP 流式解析 → WebSocket type:stream 帧 → 前端打字机
-        │
-        └──No──▶  RAG 问答
-                     ChromaDB 向量检索 → bge-small-zh 嵌入 → 32 条菜品知识库 → LLM 生成回答
+```mermaid
+flowchart TD
+    A[用户在 C 端发消息] --> B{ChatWebSocketServer<br/>/ws/chat}
+    B --> C{意图识别<br/>关键词状态机 / LLM}
+    C -->|是交易| D[tool_chat.py<br/>Python FastAPI]
+    C -->|不是交易| E[RAG 问答<br/>ChromaDB 向量检索 → bge-small-zh 嵌入 → 32 条菜品知识库 → LLM]
+
+    D --> F{LLM Tool Calling 循环}
+    F --> G[Java ChatToolServiceImpl]
+
+    subgraph H[9 个交易工具函数 — 确定性执行]
+        H1[get_cart · add_to_cart<br/>remove_from_cart · update_quantity<br/>get_menu · get_addresses<br/>submit_order · get_order_status · clear_cart]
+    end
+
+    G --> H
+    H --> I[直接查 DB / 改 Redis]
+    I --> J[流式回传<br/>Python SSE → Java 流式解析 → WebSocket type:stream 帧 → 前端打字机]
+
+    style A fill:#f2552c,color:white
+    style J fill:#10b981,color:white
+    style E fill:#6366f1,color:white
+    style H fill:#f97316,color:white,stroke-width:2px
 ```
 
 ### 四层模糊匹配引擎
