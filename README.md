@@ -1,131 +1,211 @@
-# 智膳 · 外卖点餐系统（网页复刻版）
+# 智膳 · 外卖点餐系统
 
-一套可在浏览器直接运行的外卖点餐系统，包含 **C 端 H5 点餐页**、**B 端原版 PC 管理后台**和 **Spring Boot 后端**。在原版教学项目基础上去掉了微信小程序/微信支付依赖，改为账号密码登录 + 模拟支付，并对 Redis 缓存、订单幂等、超时取消等做了工程化加固。
+> 基于黑马外卖教学项目二次开发的 **Spring Boot + Vue + Python 智能客服** 完整外卖系统。独立完成 Redis 缓存加固、订单可靠性改造、RAG 知识库、LLM Tool Calling 对话下单、SSE 流式输出等工程化功能。
+
+---
+
+## ✨ 亮点速览
+
+| 模块 | 亮点 | 关键实现 |
+| --- | --- | --- |
+| **缓存** | 三重防护（穿透/击穿/雪崩）+ 故障熔断 | `CacheClient`：空值占位 + `SET NX` 互斥锁 + TTL 抖动 + 1s 超时 5s 熔断降级 |
+| **订单** | 幂等 + 自动取消 | `SET NX EX 5` 用户级防重锁 + Redis ZSet 30 分钟延时队列 |
+| **智能客服** | LLM 对话式点餐 | 9 个交易工具函数 + Tool Calling 循环 + 四层模糊匹配 + SSE→WebSocket 流式输出 |
+| **架构** | 双链路隔离 | 咨询问答走 RAG / 交易下单走 Tool Calling，大模型幻觉不影响交易安全 |
 
 ## 技术栈
 
 | 层 | 技术 |
 | --- | --- |
-| 后端 | Spring Boot 2.7.x、MyBatis、MySQL 8、Redis（Lettuce）、JWT、WebSocket、阿里云 OSS |
+| 后端主服务 | Spring Boot 2.7.3、MyBatis、MySQL 8、Redis（Lettuce）、JWT、WebSocket、Druid |
+| 智能客服 | Python 3、FastAPI、ChromaDB、bge-small-zh（本地嵌入）、pinyin4j |
 | C 端前端 | 原生 HTML/CSS/JS 单页应用（hash 路由，无构建） |
-| B 端前端 | 原版 Vue + Element UI 编译产物（`html/sky`） |
-| 反向代理 | nginx（静态托管 + 接口转发 + gzip + 缓存头） |
-| JDK | 17，Maven 多模块 |
+| B 端前端 | 原版 Vue + Element UI 编译产物 |
+| 反向代理 | nginx（gzip + 静态资源缓存头） |
+| 构建 | JDK 17、Maven 多模块 |
 
 ## 目录结构
 
 ```
 zhishan-takeout/
-├── sky-common/                 # 通用工具、常量、异常
-├── sky-pojo/                   # entity / dto / vo
-├── sky-server/                 # 启动模块：controller / service / mapper / config / cache / task / websocket
-│   └── src/main/resources/
-│       ├── application.yml          # 主配置（JWT、Redis 超时、OSS 占位）
-│       └── application-dev.yml      # 本地环境（数据库/Redis/OSS，已 gitignore，不入库）
-├── 智能客服/                    # Python 智能客服子系统
-│   ├── app/                         # RAG：向量检索 + 嵌入
-│   ├── data/                        # 菜品知识库 markdown
-│   ├── ask.py                       # RAG 问答 CLI
-│   ├── ingest.py                    # 知识库向量化入库
-│   ├── tool_chat.py                 # LLM Tool Calling 对话下单入口
-│   ├── web_app.py                   # FastAPI SSE 流式端点 + Web 聊天 UI
-│   └── requirements.txt
+├── sky-common/                 # 通用模块：常量/异常/JWT/OSS工具/JSON配置
+├── sky-pojo/                   # Entity / DTO / VO
+├── sky-server/                 # 启动模块
+│   └── src/main/java/com/sky/
+│       ├── controller/         # admin/ + user/ 两套
+│       ├── service/            # impl/ 含 ChatToolServiceImpl
+│       ├── cache/CacheClient   # 缓存三重防护统一封装
+│       ├── config/             # Redis/WebSocket/WebMvc 配置
+│       ├── websocket/          # ChatWebSocketServer + WebSocketServer
+│       └── task/               # OrderTask(ZSet超时扫描) + WebSocketTask
+├── 智能客服/
+│   ├── app/                    # RAG：向量库 + 嵌入器 + 切分器
+│   ├── data/knowledge_base.md  # 菜品知识库（32条）
+│   ├── tool_chat.py            # LLM Tool Calling 对话入口
+│   ├── web_app.py              # FastAPI：SSE流式端点 + Web UI
+│   ├── ingest.py               # 知识库向量化入库
+│   ├── requirements.txt
+│   └── .env.example
 ├── Web/nginx-1.20.2/html/
-│   ├── web-app/                # C 端 H5（http://localhost/）
-│   └── sky/                    # B 端原版 PC 后台（http://localhost/admin/）
-├── sky_web.sql                 # 网页版数据库初始化脚本（库名 sky_web）
-└── sky_take_out.sql            # 原版脚本（保留备查）
+│   ├── web-app/                # C端 H5（http://localhost/）
+│   └── sky/                    # B端 PC后台（http://localhost/admin/）
+├── sky_web.sql                 # 数据库脚本（含 chat_tool_log / chat_message 等智能客服表）
+└── pom.xml                     # Maven 父POM
 ```
 
-## 环境要求与默认配置
+## 快速体验（5 分钟跑起来）
 
-| 组件 | 默认地址 | 说明 |
+### 1. 启动后端 + 前端（不含智能客服）
+
+```bash
+# MySQL 建库导数据
+mysql -uroot -p -e "CREATE DATABASE sky_web DEFAULT CHARSET utf8mb4"
+mysql -uroot -p sky_web < sky_web.sql
+
+# 启动 Redis（默认端口 6379）
+redis-server
+
+# 后端（端口 8080）
+cd zhishan-takeout
+mvn package -DskipTests
+java -jar sky-server/target/sky-server-1.0-SNAPSHOT.jar
+
+# nginx（端口 8，同时托管两个前端）
+cd Web/nginx-1.20.2
+nginx.exe
+```
+
+### 2. 启动智能客服（可选）
+
+```bash
+cd 智能客服
+python -m venv .venv && .venv\Scripts\activate    # Windows
+pip install -r requirements.txt
+copy .env.example .env                              # 填入自己的 LLM API Key
+python ingest.py                                    # 首次运行：向量化知识库
+python tool_chat.py                                 # 启动 LLM Tool Calling 对话服务
+python web_app.py                                   # 启动 SSE 流式端点 + 聊天 UI
+```
+
+### 3. 访问
+
+| 端 | 地址 | 账号 |
 | --- | --- | --- |
-| MySQL | `localhost:3307` | 库名 `sky_web`，账号 `root/1234`（见 `application-dev.yml`） |
-| Redis | `localhost:6379` | 无密码；命令超时 1000ms（故障快速降级） |
-| 后端 | `http://localhost:8080` | Spring Boot 端口 |
-| nginx | `http://localhost:80` | 同时托管两个前端并转发接口 |
-
-> 数据库/Redis/OSS 的连接信息都在 `sky-server/src/main/resources/application-dev.yml`，按本机环境修改即可。**该文件含 OSS AccessKey，已被 `.gitignore` 忽略，不入库。**
-
-## 启动步骤
-
-1. **建库导数据**：MySQL 中创建 `sky_web` 后导入 `sky_web.sql`（含表结构与初始账号/分类/菜品数据）。
-2. **启动 Redis**：运行 `redis-server`（端口 6379）。
-3. **启动后端**：在项目根目录执行
-   ```bash
-   mvn package -DskipTests
-   java -jar sky-server/target/sky-server-1.0-SNAPSHOT.jar
-   ```
-   看到日志 `Started SkyApplication` 即成功（约 10~20 秒）。
-4. **启动 nginx**：运行 `Web/nginx-1.20.2/nginx.exe`（建议用常驻进程方式运行，避免随终端退出）。
-
-## 访问入口与账号
-
-| 端 | 地址 | 账号 | 说明 |
-| --- | --- | --- | --- |
-| C 端 H5 | http://localhost/ | `zhangsan` / `123456` | 点餐、购物车、下单支付、订单、地址、我的 |
-| B 端 PC 后台 | http://localhost/admin/ | `admin` / `123456` | 员工/分类/菜品/套餐/订单/店铺/报表/工作台 |
-
-密码在库中为 MD5 存储。H5 登录请求体带 `role`（1 用户 2 商家），当前系统仅保留用户角色（商家功能统一在 PC 后台）。
+| C 端 H5 点餐 | http://localhost/ | `zhangsan` / `123456` |
+| B 端 PC 后台 | http://localhost/admin/ | `admin` / `123456` |
+| 智能客服 Web UI | http://localhost:8000/ （启动 web_app.py 后） | 无需账号 |
 
 ## nginx 路由
 
 | 路径 | 去向 |
 | --- | --- |
-| `/`、静态资源 | H5（`html/web-app`），HTML `no-cache`、css/js 5 分钟、图片字体 7 天，开启 gzip |
-| `/admin/` | PC 后台（`html/sky`），hash 路由（`try_files` 回退 index.html） |
-| `/api/` | 转发到 `http://localhost:8080/admin/`（PC 后台的接口前缀） |
-| `/user/` | 转发到 `http://localhost:8080/user/`（H5 的接口前缀） |
-| `/ws/` | 转发到后端 WebSocket（来单/催单提醒） |
+| `/` | C 端 H5（`html/web-app`） |
+| `/admin/` | B 端 PC 后台（hash 路由） |
+| `/user/**` → `localhost:8080/user/**` | C 端接口 |
+| `/admin/**` → `localhost:8080/admin/**` | B 端接口 |
+| `/ws/` | 后端 WebSocket 代理 |
+| `/ws/chat` | 客服聊天 WebSocket |
 
-## 图片上传（阿里云 OSS）
+## WebSocket 端点
 
-菜品/套餐图片通过 `POST /admin/common/upload` 上传到阿里云 OSS，返回可公开访问的 URL，需要在 `application-dev.yml` 配置自己的 `sky.alioss.*`（endpoint、access-key-id/secret、bucket-name），并把 bucket 读写权限设为**公共读**。未配置或密钥错误时接口返回“文件上传失败”。
+| 端点 | 类 | 用途 |
+| --- | --- | --- |
+| `/ws/{sid}` | `WebSocketServer` | 来单提醒、催单提醒（商家端） |
+| `/ws/chat` | `ChatWebSocketServer` | 用户 ↔ 客服 实时聊天 + 智能客服消息推送 + 流式打字机渲染 |
 
-## 核心功能与工程化加固
+## 智能客服架构
 
-- **缓存三重防护**（统一封装在 `CacheClient`，覆盖菜品/套餐/报表读路径）
-  - 穿透：非法参数入口拦截 + 空结果写 `CACHE_EMPTY` 占位（TTL 2 分钟）
-  - 击穿：未命中时 `SET NX` 互斥锁（锁 TTL 10s）+ 双重检查 + Lua 按 owner 释放
-  - 雪崩：TTL 附加 0~10% 随机抖动；Redis 故障 1s 快速失败 + 5s 熔断降级直查 MySQL
-  - 写一致性：菜品/套餐写操作统一“**延迟双删**”（先删→更库→500ms 后异步再删），批量失效用 SCAN 替代 KEYS
-- **店铺状态**：Redis `SHOP_STATUS` + JVM 本地 10s 缓存，Redis 故障时返回陈旧值兜底；H5 打烊时禁用加菜与结算按钮。
-- **下单幂等**：`SET NX EX 5` 用户级防重锁（key `order:submit:lock:{userId}`）；订单号用 Redis `INCR` 按天生成序列。
-- **支付幂等**：模拟支付，应用层校验订单状态（非待付款直接返回）+ 数据库条件更新 `where status=1`，重复点击不会重复置状态或重复通知商家。
-- **超时取消**：Redis ZSet 延时队列（`order:expire`，每 5 秒扫描到期单）+ 每 5 分钟 DB 兜底扫描，支付/取消/超时都会移除队列成员；另每天凌晨 1 点自动完成派送超 60 分钟的订单。
-- **登录防护**：用户连续登录失败 5 次锁定 10 分钟（`user:login:fail:{username}`）。
-
-更多细节见 [接口文档.md](./接口文档.md)、[Redis改造测试用例.md](./Redis改造测试用例.md)、[三层缓存体系学习总结.md](./三层缓存体系学习总结.md)。
-
-## 当前已知限制
-
-- `POST /admin/dish/status/{status}`：控制器会清缓存，但 `DishServiceImpl.startOrStop()` 方法体为空，菜品启停状态实际不落库。
-- `DELETE /admin/setmeal`：`SetmealServiceImpl.deleteBatch()` 方法体为空，接口返回成功但不删除数据。
-- `PUT /admin/setmeal`：只更新套餐主表，不维护套餐-菜品关联关系。
-- 打烊拦截目前只在 H5 前端，后端 `submitOrder` 未强制校验店铺状态（直接调接口仍可下单）。
-- 报表缓存未做业务写时主动失效，最长可能陈旧 30 分钟（靠 TTL 自然过期）。
-
-## 智能客服（对话式点餐）
-
-基于 **LLM Tool Calling + Java 确定性执行** 混合架构实现的对话式点餐子系统，与 C 端 H5 WebSocket 打通。
-
-**技术栈**：Python FastAPI、ChromaDB 向量库、bge-small-zh 嵌入模型、pinyin4j 拼音匹配
-
-**核心架构**：
-- 意图识别由 LLM 完成（tool calling），交易执行由 Java `ChatToolServiceImpl` 确定性完成（8 个交易工具函数：加菜/删菜/改份数/查购物车/查订单/提交订单/选地址/再来一单），架构层面避免大模型幻觉影响交易安全
-- **双链路职责分离**：咨询问答走 RAG（ChromaDB 检索菜品知识库）、交易下单走 Tool Calling
-- **四层模糊匹配引擎**：精确→包含→拼音（pinyin4j）→编辑距离（阈值 0.75），解决同音错别字、口语化描述
-- **流式输出**：Python SSE → Java JDK HttpClient 流式解析 → WebSocket `type:stream` 帧 → 前端打字机效果逐字渲染
-- **成本监控**：工具调用日志 + LLM token 消耗落 MySQL，支持对话质量复盘
-
-**启动智能客服**：
-```bash
-cd 智能客服
-python -m venv .venv && .venv\Scripts\activate   # Windows
-pip install -r requirements.txt
-cp .env.example .env   # 填入自己的 LLM API Key 和 ChromaDB 路径
-python ingest.py       # 首次运行：向量化菜品知识库
-python tool_chat.py    # 启动 LLM tool calling 对话服务
-python web_app.py      # 启动 SSE 流式端点 + 聊天 UI
 ```
+用户在 C 端发消息
+        │
+        ▼
+ChatWebSocketServer (/ws/chat)
+        │
+   ┌────┴────┐
+   │ 意图识别 │  — 关键词状态机 / LLM 判断
+   └────┬────┘
+   是交易?  ──Yes──▶  tool_chat.py (Python FastAPI)
+        │                    │
+        │              LLM Tool Calling 循环
+        │                    │
+        │              9 个 Java 工具函数
+        │              ┌──────────────────┐
+        │              │ get_cart          │
+        │              │ add_to_cart      │
+        │              │ remove_from_cart │
+        │              │ update_quantity  │
+        │              │ get_menu          │
+        │              │ get_addresses    │
+        │              │ submit_order      │
+        │              │ get_order_status  │
+        │              │ clear_cart       │
+        │              └──────────────────┘
+        │              Java 确定性执行 → 直接查 DB / 改 Redis
+        │                    │
+        │              流式回传: Python SSE → Java HTTP 流式解析 → WebSocket type:stream 帧 → 前端打字机
+        │
+        └──No──▶  RAG 问答
+                     ChromaDB 向量检索 → bge-small-zh 嵌入 → 32 条菜品知识库 → LLM 生成回答
+```
+
+### 四层模糊匹配引擎
+
+加菜时的菜名匹配顺序（`ChatToolServiceImpl.toolAddToCart`）：
+
+```
+用户输入: "宫爆鸡丁"
+  ① 精确匹配 → 未命中
+  ② 包含匹配 → 未命中
+  ③ 拼音匹配 (pinyin4j) → gong bao ji ding ↔ "宫保鸡丁" ✓
+  ④ 编辑距离兜底 (阈值 0.75)
+```
+
+### 工具列表（9 个）
+
+| 工具 | Java 方法 | 功能 |
+| --- | --- | --- |
+| `get_cart` | `toolGetCart` | 查看当前购物车 |
+| `add_to_cart` | `toolAddToCart` | 加菜（含四层模糊匹配） |
+| `remove_from_cart` | `toolRemoveFromCart` | 删菜 |
+| `update_quantity` | `toolUpdateQuantity` | 改份数 |
+| `get_menu` | `toolGetMenu` | 查看菜单 |
+| `get_addresses` | `toolGetAddresses` | 查看收货地址 |
+| `submit_order` | `toolSubmitOrder` | 提交订单 |
+| `get_order_status` | `toolGetOrderStatus` | 查订单状态 |
+| `clear_cart` | `toolClearCart` | 清空购物车 |
+
+## 缓存三重防护
+
+统一封装在 `CacheClient`，覆盖菜品/套餐/报表/店铺状态读路径。
+
+| 问题 | 解法 | 关键代码 |
+| --- | --- | --- |
+| 穿透 | 非法参数入口拦截 + 空结果写 `CACHE_EMPTY` 占位（TTL 2min） | `getWithProtection` |
+| 击穿 | 未命中时 `SET NX` 互斥锁（TTL 10s）+ 双重检查 + Lua 按 owner 释放 | `tryLock` / `unlock` |
+| 雪崩 | TTL 附加 0~10% 随机抖动；Redis 故障 1s 快速失败 + 5s 熔断降级直查 MySQL | `jitterTtl` / `safeGet` / `safeSet` |
+| 写一致性 | 延迟双删（先删 → 更库 → 500ms 异步再删），批量失效用 SCAN 替代 KEYS | 各 ServiceImpl |
+
+## 订单可靠性
+
+- **幂等**：`SET NX EX 5` 用户级防重锁（key `order:submit:lock:{userId}`）；应用层校验订单状态 + DB `where status=1` 条件更新
+- **自动取消**：Redis ZSet 延时队列（`order:expire`，每 5s 扫描到期单）+ 每 5min DB 兜底扫描；支付/取消/超时均移除队列
+- **订单号生成**：Redis `INCR` 按天序列 + 日期前缀
+- **登录防护**：连续失败 5 次锁定 10min（`user:login:fail:{username}`）
+
+## 项目截图
+
+本仓库的设计稿存放在仓库根目录的 `design/` 文件夹（不在 git 中）。
+
+## 已知限制
+
+以下是目前还没实现的点，面试时可以主动提（说明你知道哪里还不完美）：
+
+- `DishServiceImpl.startOrStop()` 方法体为空，菜品启停状态实际不落库
+- `SetmealServiceImpl.deleteBatch()` 方法体为空
+- `PUT /admin/setmeal` 只更新套餐主表，不维护套餐-菜品关联关系
+- 打烊拦截目前只在 H5 前端，后端 `submitOrder` 未强制校验店铺状态
+- 报表缓存未做业务写时主动失效，最长可能陈旧 30 分钟
+
+## License
+
+Personal project. For educational purposes.
