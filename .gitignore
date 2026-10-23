@@ -1,0 +1,35 @@
+# 编译/构建产物
+**/target/
+*.class
+*.jar
+*.war
+*.log
+dump.rdb
+
+# 二进制/可执行文件
+*.exe
+*.dll
+*.so
+*.dylib
+*.pid
+
+# IDE
+.idea
+*.iml
+.vscode/
+
+# 依赖/虚拟环境
+node_modules/
+.venv/
+venv/
+__pycache__/
+
+# 含密钥的本地环境配置，绝对禁止提交
+**/application-dev.yml
+**/application-local.yml
+.env
+.env.*
+
+# 系统文件
+.DS_Store
+Thumbs.db
