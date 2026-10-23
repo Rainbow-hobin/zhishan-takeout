@@ -15,13 +15,21 @@
 ## 目录结构
 
 ```
-heima_sky_take_out-main/
+zhishan-takeout/
 ├── sky-common/                 # 通用工具、常量、异常
 ├── sky-pojo/                   # entity / dto / vo
-├── sky-server/                 # 启动模块：controller / service / mapper / config / cache / task
+├── sky-server/                 # 启动模块：controller / service / mapper / config / cache / task / websocket
 │   └── src/main/resources/
 │       ├── application.yml          # 主配置（JWT、Redis 超时、OSS 占位）
 │       └── application-dev.yml      # 本地环境（数据库/Redis/OSS，已 gitignore，不入库）
+├── 智能客服/                    # Python 智能客服子系统
+│   ├── app/                         # RAG：向量检索 + 嵌入
+│   ├── data/                        # 菜品知识库 markdown
+│   ├── ask.py                       # RAG 问答 CLI
+│   ├── ingest.py                    # 知识库向量化入库
+│   ├── tool_chat.py                 # LLM Tool Calling 对话下单入口
+│   ├── web_app.py                   # FastAPI SSE 流式端点 + Web 聊天 UI
+│   └── requirements.txt
 ├── Web/nginx-1.20.2/html/
 │   ├── web-app/                # C 端 H5（http://localhost/）
 │   └── sky/                    # B 端原版 PC 后台（http://localhost/admin/）
@@ -44,7 +52,7 @@ heima_sky_take_out-main/
 
 1. **建库导数据**：MySQL 中创建 `sky_web` 后导入 `sky_web.sql`（含表结构与初始账号/分类/菜品数据）。
 2. **启动 Redis**：运行 `redis-server`（端口 6379）。
-3. **启动后端**：在 `heima_sky_take_out-main` 执行
+3. **启动后端**：在项目根目录执行
    ```bash
    mvn package -DskipTests
    java -jar sky-server/target/sky-server-1.0-SNAPSHOT.jar
@@ -98,11 +106,26 @@ heima_sky_take_out-main/
 - 打烊拦截目前只在 H5 前端，后端 `submitOrder` 未强制校验店铺状态（直接调接口仍可下单）。
 - 报表缓存未做业务写时主动失效，最长可能陈旧 30 分钟（靠 TTL 自然过期）。
 
-## 项目截图
+## 智能客服（对话式点餐）
 
-- ![image-20240426195901149](./image/image-20240426195901149.png)
+基于 **LLM Tool Calling + Java 确定性执行** 混合架构实现的对话式点餐子系统，与 C 端 H5 WebSocket 打通。
 
-- ![image-20240426195929170](./image/image-20240426195929170.png)
-- ![image-20240426195959737](./image/image-20240426195959737.png)
-- ![image-20240426200014740](./image/image-20240426200014740.png)
-- ![image-20240426200102763](./image/image-20240426200102763.png)
+**技术栈**：Python FastAPI、ChromaDB 向量库、bge-small-zh 嵌入模型、pinyin4j 拼音匹配
+
+**核心架构**：
+- 意图识别由 LLM 完成（tool calling），交易执行由 Java `ChatToolServiceImpl` 确定性完成（8 个交易工具函数：加菜/删菜/改份数/查购物车/查订单/提交订单/选地址/再来一单），架构层面避免大模型幻觉影响交易安全
+- **双链路职责分离**：咨询问答走 RAG（ChromaDB 检索菜品知识库）、交易下单走 Tool Calling
+- **四层模糊匹配引擎**：精确→包含→拼音（pinyin4j）→编辑距离（阈值 0.75），解决同音错别字、口语化描述
+- **流式输出**：Python SSE → Java JDK HttpClient 流式解析 → WebSocket `type:stream` 帧 → 前端打字机效果逐字渲染
+- **成本监控**：工具调用日志 + LLM token 消耗落 MySQL，支持对话质量复盘
+
+**启动智能客服**：
+```bash
+cd 智能客服
+python -m venv .venv && .venv\Scripts\activate   # Windows
+pip install -r requirements.txt
+cp .env.example .env   # 填入自己的 LLM API Key 和 ChromaDB 路径
+python ingest.py       # 首次运行：向量化菜品知识库
+python tool_chat.py    # 启动 LLM tool calling 对话服务
+python web_app.py      # 启动 SSE 流式端点 + 聊天 UI
+```
