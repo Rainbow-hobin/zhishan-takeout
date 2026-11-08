@@ -844,7 +844,7 @@
     render(navbar("收银台", { back: true }) + '<div class="pay-page">'
       + '<div class="pay-box"><div class="pb-time" id="pay-time">支付剩余时间 15:00</div>'
       + '<div class="pb-money"><small>￥</small>' + Util.money(order.orderAmount || order.amount) + "</div>"
-      + '<div class="pb-name">智膳 - ' + Util.esc(order.orderNumber || "") + "</div></div>"
+      + '<div class="pb-name">智膳 - ' + Util.esc(order.number || "") + "</div></div>"
       + '<div class="card pay-methods">'
       + '<div class="pm-item"><span class="pm-ico">💳</span><span class="pm-name">模拟支付（点击即付款）</span><span class="pm-radio on"></span></div>'
       + '<div style="font-size:11px;color:#aaa;padding:4px 2px;">个人练习项目，不接入真实支付渠道</div>'
@@ -869,9 +869,9 @@
 
     document.getElementById("pay-btn").addEventListener("click", async () => {
       try {
-        await Api.orderPay({ orderNumber: order.orderNumber, payMethod: 1 });
+        await Api.orderPay({ orderNumber: order.number, payMethod: 1 });
         clearInterval(timer);
-        go("success", { orderId: order.id, number: order.orderNumber, amount: order.orderAmount || order.amount });
+        go("success", { orderId: order.id, number: order.number, amount: order.orderAmount || order.amount });
       } catch (e) {
         Util.toast(e.message);
       }
@@ -889,7 +889,7 @@
       + '<button class="btn-primary" id="su-detail">查看订单详情</button>'
       + '<button class="btn-plain" id="su-menu">返回首页</button>'
       + "</div>", { title: "支付成功" });
-    document.getElementById("su-detail").addEventListener("click", () => go("history"));
+    document.getElementById("su-detail").addEventListener("click", () => go("orderDetail", { orderId: p.orderId }));
     document.getElementById("su-menu").addEventListener("click", () => go("menu"));
   }
 
@@ -963,7 +963,7 @@
     // 底部操作栏（按状态）
     const bar = document.getElementById("od-bar");
     let actions = "";
-    if (st === 1) actions = '<button class="btn-plain" data-act="cancel">取消订单</button><button class="btn-primary" data-act="pay">去支付</button>';
+    if (st === 1) actions = '<button class="btn-plain od-cancel" data-act="cancel">取消订单</button><button class="btn-primary od-pay" data-act="pay">去支付</button>';
     else if (st === 2) actions = '<button class="btn-plain" data-act="cancel">取消订单</button><button class="btn-plain" data-act="remind">催单</button>';
     else if (st === 3 || st === 4) actions = '<button class="btn-plain" data-act="remind">催单</button>';
     else if (st === 5 || st === 6) actions = '<button class="btn-primary" data-act="repetition">再来一单</button>';
@@ -1376,6 +1376,7 @@
       ? history.map(bubbleHtml).join("")
       : '<div class="chat-tip">还没有消息，发送一条开始咨询吧<br>可以问我退款、配送问题，也可以直接说「帮我下单：宫保鸡丁2份」</div>';
     scrollChatBottom();
+    bindAutoHideScrollbar(msgs);
 
     const input = document.getElementById("chat-input");
     const sendBtn = document.getElementById("chat-send");
@@ -1429,6 +1430,17 @@
         document.getElementById("banner-send").addEventListener("click", () => sendOrderCard(o));
       } catch (e) { banner.remove(); }
     }
+  }
+
+  // 滚动条按需显示：滚动时出现，静止 700ms 后自动隐藏
+  function bindAutoHideScrollbar(el) {
+    if (!el) return;
+    let timer = null;
+    el.addEventListener("scroll", () => {
+      el.classList.add("scrolling");
+      clearTimeout(timer);
+      timer = setTimeout(() => el.classList.remove("scrolling"), 700);
+    }, { passive: true });
   }
 
   function scrollChatBottom() {

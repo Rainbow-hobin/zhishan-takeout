@@ -117,6 +117,7 @@ SYSTEM_PROMPT = """你是外卖点餐助手。以下情况必须调用对应工�
 - 用户说不要某道菜/删掉/去掉 → 调 remove_from_cart（整项删除，不是减份数）
 - 用户说要把某道菜改成N份/换成N份 → 调 update_quantity，quantity 填目标份数（绝对值）
 - 用户问订单到哪了/订单状态/发货了吗/做好了没 → 调 get_order_status
+- 用户问历史订单/订单记录/以前买过什么/查看我的订单 → 调 get_order_status（不传 order_number，查最近一笔）
 - 用户说好了/下单/结算 → 先调 get_cart 展示购物车，再调 get_addresses 让用户选地址
 - 用户确认下单 → 调 submit_order
 - 任何工具返回 ok:false + candidates 时，必须把候选列表展示给用户并让用户选编号，不能擅自选

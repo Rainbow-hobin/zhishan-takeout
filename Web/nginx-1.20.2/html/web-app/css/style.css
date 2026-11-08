@@ -297,8 +297,10 @@ input:focus, textarea:focus, select:focus {
 /* 全局常驻底部导航（#app 之外，切页不销毁） */
 .global-tabbar { z-index: 60; }
 .page-shell.has-tabbar #app { padding-bottom: 58px; }
-/* 确认订单页自带的提交栏在常驻导航之上 */
-.page-shell.has-tabbar .bottom-bar { bottom: 58px; }
+/* 确认订单页自带的提交栏在常驻导航之上。
+   #app 已经用 padding-bottom:58px 给 tabbar 留了位，sticky 又是按内容盒计算的，
+   这里再减 58 会重复让位，导致操作栏悬在半空 */
+.page-shell.has-tabbar .bottom-bar { bottom: 0; }
 
 /* Toast */
 .toast {
@@ -859,8 +861,11 @@ input:focus, textarea:focus, select:focus {
   font-variant-numeric: tabular-nums;
 }
 
+/* 底部操作栏：用 sticky 而不是 absolute。
+   #app 是滚动容器，absolute + bottom:0 会锚在初始视口的底部并随内容一起滚动，
+   往下滚时就跑到页面中间压住卡片（订单详情的「再来一单」就是这样） */
 .bottom-bar {
-  position: absolute;
+  position: sticky;
   left: 0;
   right: 0;
   bottom: 0;
@@ -1424,7 +1429,35 @@ input:focus, textarea:focus, select:focus {
 .chat-msgs {
   flex: 1; min-height: 0; overflow-y: auto; padding: 12px;
   background: transparent;
+  /* 滚动条透明化：轨道融入背景，只留细圆角滑块，去掉 Windows 默认的浅色轨道和上下箭头 */
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
 }
+.chat-msgs.scrolling { scrollbar-color: rgba(93, 100, 112, .3) transparent; }
+.chat-msgs::-webkit-scrollbar { width: 2px; height: 2px; background: transparent; }
+.chat-msgs::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+.chat-msgs::-webkit-scrollbar-track { background: transparent; }
+/* 默认隐藏滑块，滚动时由 JS 加 .scrolling 才显示 */
+.chat-msgs::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: var(--r-pill);
+}
+/* 滑块长度由内容比例决定、无法直接设 height：用分段渐变只渲染中间 36px 的小胶囊，两侧透明 */
+.chat-msgs.scrolling::-webkit-scrollbar-thumb {
+  background: linear-gradient(to bottom,
+    transparent calc(50% - 18px),
+    rgba(93, 100, 112, .38) calc(50% - 18px),
+    rgba(93, 100, 112, .38) calc(50% + 18px),
+    transparent calc(50% + 18px));
+}
+.chat-msgs::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(to bottom,
+    transparent calc(50% - 18px),
+    rgba(93, 100, 112, .55) calc(50% - 18px),
+    rgba(93, 100, 112, .55) calc(50% + 18px),
+    transparent calc(50% + 18px));
+}
+.chat-msgs::-webkit-scrollbar-corner { background: transparent; }
 .chat-tip { text-align: center; color: var(--ink-300); font-size: 12px; margin-top: 24px; }
 
 /* 人工/智能切换等系统提示：居中灰条 */
@@ -1452,12 +1485,14 @@ input:focus, textarea:focus, select:focus {
   overflow: hidden;
 }
 .msg-col { max-width: 74%; display: flex; flex-direction: column; }
+/* 左侧头像（机器人/商家）下移 20px，避开时间标签、视觉上对齐气泡中段 */
+.other .msg-avatar { margin-top: 20px; }
 .mine .msg-col { align-items: flex-end; }
 .other .msg-col { align-items: flex-start; }
 .msg-time { font-size: 10px; color: var(--ink-300); margin-bottom: 3px; }
 .bubble {
-  padding: 10px 13px; border-radius: 14px;
-  font-size: 14px; line-height: 1.55;
+  padding: 6px 11px; border-radius: 13px;
+  font-size: 14px; line-height: 1.45;
   word-break: break-word; white-space: pre-wrap;
   -webkit-user-select: text; user-select: text;
 }
@@ -1716,7 +1751,15 @@ input:focus, textarea:focus, select:focus {
 }
 .od-status h3 { font-size: 20px; font-weight: 700; letter-spacing: .5px; }
 .od-status p { margin-top: 5px; font-size: 12px; opacity: .92; }
-.od-s1 { background: var(--grad-brand); box-shadow: var(--shadow-brand-sm); }
+/* 待付款：与下方白色卡片同族——白色卡片 + 橙色虚线描边，状态文字用品牌色 */
+.od-s1 {
+  background: #fff;
+  color: var(--ink-900);
+  border: 1px dashed rgba(242, 85, 44, .45);
+  box-shadow: var(--shadow-xs);
+}
+.od-s1 h3 { color: var(--brand-600); }
+.od-s1 p { color: var(--ink-500); opacity: 1; }
 .od-s2 { background: linear-gradient(135deg, #4f8bff, #2f6fed); }
 .od-s3 { background: linear-gradient(135deg, #34b26b, #16a34a); }
 .od-s4 { background: linear-gradient(135deg, #7b61ff, #5a3ff0); }
@@ -1740,9 +1783,24 @@ input:focus, textarea:focus, select:focus {
 .card .oc-row .oc-name { flex: 1; color: var(--ink-700); }
 .card .oc-row .oc-num { color: var(--ink-400); }
 
-/* 详情页底部栏：单按钮靠右、按钮加胶囊感 */
-.bottom-bar.od-single { justify-content: flex-end; }
+/* 下单页的提交栏被 JS 移到了 .page-shell 下（在 #app 滚动容器之外），
+   sticky 在那里不起作用，改用 absolute 锚在 tabbar 正上方。
+   注意要盖过 .page-shell.has-tabbar .bottom-bar { bottom: 0 } 的优先级 */
+.page-shell.has-tabbar > .bottom-bar,
+.page-shell > .bottom-bar {
+  position: absolute;
+  bottom: 58px;
+}
+
+/* 单个按钮（再来一单 / 催单）：撑满整条底栏，不再是一颗悬在右侧的小胶囊 */
+.bottom-bar.od-single { justify-content: stretch; }
+.bottom-bar.od-single > .btn-primary,
+.bottom-bar.od-single > .btn-plain { flex: 1 1 auto; width: 100%; }
 .bottom-bar .btn-plain { padding: 10px 24px; border-radius: var(--r-pill); }
+/* 待付款双按钮：撑满底部栏、视觉上黏在导航栏上方 */
+.bottom-bar .btn-plain.od-cancel,
+.bottom-bar .btn-primary.od-pay { flex: 1; }
+.bottom-bar .btn-plain.od-cancel { margin-right: 12px; }
 
 /* ============ 全局细边框：卡片与弹层轮廓（轻描边，柔和不抢眼） ============ */
 .card,

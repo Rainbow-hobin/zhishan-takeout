@@ -1,29 +1,20 @@
 /**
- * Welcome to your Workbox-powered service worker!
+ * 自毁 Service Worker
  *
- * You'll need to register this file in your web app and you should
- * disable HTTP caching for this file too.
- * See https://goo.gl/nhQhGp
- *
- * The rest of the code is auto-generated. Please don't update this file
- * directly; instead, make changes to your Workbox build configuration
- * and re-run your build process.
- * See https://goo.gl/2aRDsh
+ * 原始 Workbox 预缓存会把 index.html 一起缓存，导致前端样式/脚本更新后
+ * 浏览器仍然拿到旧页面。这里改为「安装即接管、激活即清缓存并注销」，
+ * 让浏览器回归纯网络请求，之后的静态资源更新可以立即生效。
  */
+self.addEventListener("install", () => {
+  self.skipWaiting();
+});
 
-importScripts("https://storage.googleapis.com/workbox-cdn/releases/3.6.3/workbox-sw.js");
-
-importScripts(
-  "precache-manifest.5e430aca4979062ff3bb5d045cb4a7aa.js"
-);
-
-workbox.core.setCacheNameDetails({prefix: "vue-typescript-admin-template"});
-
-/**
- * The workboxSW.precacheAndRoute() method efficiently caches and responds to
- * requests for URLs in the manifest.
- * See https://goo.gl/S9QRab
- */
-self.__precacheManifest = [].concat(self.__precacheManifest || []);
-workbox.precaching.suppressWarnings();
-workbox.precaching.precacheAndRoute(self.__precacheManifest, {});
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+      await self.registration.unregister();
+    })()
+  );
+});

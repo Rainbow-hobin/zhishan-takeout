@@ -1,0 +1,639 @@
+/* ============================================================
+   智膳 · 商家管理后台 — 主题覆盖层
+   加载顺序：chunk-vendors.css → app.css → 本文件（最后加载，覆盖生效）
+   仅做视觉层覆盖，不改动任何业务结构与交互逻辑
+   ============================================================ */
+
+:root {
+  --m-brand: #f2552c;
+  --m-brand-hover: #fb6a3a;
+  --m-brand-active: #df4218;
+  --m-brand-grad: linear-gradient(135deg, #fb6a3a 0%, #f2552c 52%, #e0431a 100%);
+  --m-brand-soft: #fff5f0;
+  --m-ink: #17181c;
+  --m-ink-2: #2b2d33;
+  --m-ink-3: #5d6470;
+  --m-ink-4: #8b919c;
+  --m-line: #ececf0;
+  --m-line-soft: #f2f3f6;
+  --m-bg: #f6f7f9;
+  --m-side: #1e222b;
+  --m-side-2: #262b36;
+  --m-radius: 10px;
+}
+
+/* ---------------- 全局底色 ---------------- */
+html,
+body,
+#app {
+  background: var(--m-bg);
+}
+
+#app .main-container,
+#app .app-main {
+  background: var(--m-bg);
+}
+
+/* 内容区未撑满父容器：实测 .app-main 仅 522px，而 .main-container 有 810px，
+   右侧空出 288px，顶栏「管理员」按钮因此落在内容区之外。这里显式撑满 */
+#app .main-container > .app-main {
+  width: 100% !important;
+  flex: 1 1 auto;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* 编译产物给 .app-wrapper 写死了 min-width:1366px，
+   窗口宽度不足 1366 时整页横向溢出，右侧顶栏元素（营业状态设置、管理员）
+   会被挤出可视区。这里解除最小宽度限制，让布局随视口自适应 */
+#app .app-wrapper {
+  min-width: 0 !important;
+  overflow-x: hidden !important;
+}
+
+/* ---------------- 左侧导航 ---------------- */
+/* 侧栏 Logo：原图是「苍穹外卖」品牌图，这里隐藏原图改用纯文字字标 */
+/* 右端淡出到 #ffd8c2，与顶栏渐变的起始色完全一致，两块的接缝才不会出现竖线 */
+#app .logo {
+  background: linear-gradient(90deg,
+    #f2552c 0%,
+    #f2552c 62%,
+    #f97a4e 82%,
+    #ffb496 93%,
+    #ffd8c2 100%) !important;
+  border-bottom: 0 !important;
+  box-shadow: none;
+  padding: 0 !important;
+  height: 60px !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#app .logo img {
+  display: none !important;
+}
+
+#app .logo::after {
+  content: "智膳";
+  color: #fff;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: 4px;
+  text-indent: 4px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, .18);
+}
+
+#app .hideSidebar .logo::after {
+  font-size: 15px;
+  letter-spacing: 0;
+  text-indent: 0;
+}
+
+/* 侧栏改浅色底：原来的深炭黑占满整列，和右侧白色内容区反差过大显得很重 */
+#app .sidebar-container,
+#app .sidebar-container .el-scrollbar {
+  background: #fff !important;
+}
+
+/* Element UI 的菜单底色/文字色是通过组件的 background-color / text-color
+   prop 写成内联样式的，必须用 !important 才能覆盖 */
+#app .sidebar-container .el-menu,
+#app .sidebar-container .el-menu.el-menu--vertical {
+  background-color: #fff !important;
+  border-right: 1px solid #f2eeeb;
+}
+
+#app .sidebar-container .el-submenu .el-menu-item,
+#app .sidebar-container .el-submenu > .el-submenu__title {
+  background-color: #fafbfc !important;
+}
+
+#app .sidebar-container .el-menu .el-menu-item,
+#app .sidebar-container .el-menu .el-submenu__title {
+  color: #5d6470 !important;
+  border-radius: var(--m-radius);
+}
+
+#app .sidebar-container .el-menu .el-menu-item:hover,
+#app .sidebar-container .el-menu .el-menu-item:focus,
+#app .sidebar-container .el-submenu__title:hover,
+#app .sidebar-container .el-submenu__title:focus {
+  color: var(--m-brand) !important;
+  background: var(--m-brand-soft) !important;
+  border-radius: var(--m-radius) !important;
+}
+
+#app .sidebar-container .el-menu .el-menu-item:hover span,
+#app .sidebar-container .el-menu .el-menu-item:focus span,
+#app .sidebar-container .el-submenu__title:hover span,
+#app .sidebar-container .el-submenu__title:focus span {
+  color: var(--m-brand) !important;
+}
+
+#app .sidebar-container .el-menu .router-link-active .el-menu-item {
+  background: #fff0e8 !important;
+  color: var(--m-brand) !important;
+  border-radius: var(--m-radius) !important;
+  box-shadow: inset 3px 0 0 var(--m-brand) !important;
+}
+
+#app .sidebar-container .el-menu .router-link-active .el-menu-item span {
+  color: var(--m-brand) !important;
+  font-weight: 600 !important;
+}
+
+#app .sidebar-container .el-menu .is-active,
+#app .sidebar-container .el-submenu.is-active > .el-submenu__title {
+  color: var(--m-brand) !important;
+}
+
+/* ---------------- 订单信息弹窗 ---------------- */
+/* 金额列原本写死 300px，窗口不够宽时会把弹窗撑出横向滚动条 */
+#app .order-dialog .amount-list .dish-amount,
+#app .order-dialog .amount-list .package-amount,
+#app .order-dialog .amount-list .pay-type {
+  width: auto !important;
+  min-width: 0;
+}
+
+/* ---------------- 顶部栏 ---------------- */
+/* 左侧起点取暖橙色，与侧栏「智膳」橙色 Logo 块衔接，避免出现生硬的分界竖线 */
+#app .navbar {
+  background: linear-gradient(90deg,
+    #ffd8c2 0%,
+    #fff1e8 14%,
+    #ffffff 44%,
+    #fff9f5 72%,
+    #ffe6d6 100%) !important;
+  border-bottom: 1px solid #f5e2d6;
+  box-shadow: 0 1px 2px rgba(242, 85, 44, .06);
+}
+
+#app .navbar .right-menu {
+  color: var(--m-ink-2);
+  line-height: 60px;
+}
+
+#app .navbar .right-menu span:hover {
+  background: var(--m-brand-soft) !important;
+  border-radius: 8px;
+}
+
+#app .navbar .hamburger-container:hover {
+  background: var(--m-brand-soft) !important;
+  border-radius: 8px;
+}
+
+#app .navbar .businessBtn {
+  background: var(--m-brand) !important;
+  border-radius: 6px;
+}
+
+#app .navbar .businessBtn.closing {
+  background: #8b919c !important;
+}
+
+#app .userInfo p:hover {
+  background: var(--m-brand-soft) !important;
+}
+
+/* ---------------- 内容区页面容器 ---------------- */
+#app .container {
+  border-radius: 12px !important;
+  box-shadow: 0 1px 2px rgba(23, 24, 28, .05), 0 2px 10px rgba(23, 24, 28, .04);
+}
+
+#app .HeadLable {
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(23, 24, 28, .05);
+  color: var(--m-ink-2) !important;
+  font-weight: 600 !important;
+}
+
+/* ---------------- 表格 ---------------- */
+#app .el-table {
+  border-radius: var(--m-radius);
+  color: var(--m-ink-2);
+}
+
+#app .el-table::before {
+  display: none;
+}
+
+#app .el-table th {
+  background: #fafbfc !important;
+  color: var(--m-ink-3);
+  font-weight: 600;
+  border-bottom: 1px solid var(--m-line) !important;
+}
+
+#app .el-table td {
+  border-bottom: 1px solid var(--m-line-soft) !important;
+}
+
+#app .el-table--enable-row-hover .el-table__body tr:hover > td {
+  background: var(--m-brand-soft) !important;
+}
+
+#app .el-table thead {
+  color: var(--m-ink-3);
+}
+
+/* ---------------- 按钮 ---------------- */
+#app .el-button {
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+#app .el-button--primary {
+  background: var(--m-brand-grad);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 3px 9px rgba(226, 67, 26, .22);
+}
+
+#app .el-button--primary:focus,
+#app .el-button--primary:hover {
+  background: var(--m-brand-hover) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+}
+
+#app .el-button--primary.is-active,
+#app .el-button--primary:active {
+  background: var(--m-brand-active) !important;
+  border-color: transparent !important;
+}
+
+#app .el-button--primary.is-disabled,
+#app .el-button--primary.is-disabled:hover {
+  background: #ffcbb3 !important;
+  border-color: transparent !important;
+  box-shadow: none;
+}
+
+#app .el-button--text {
+  color: var(--m-brand) !important;
+}
+
+/* ---------------- 表单控件 ---------------- */
+#app .el-input__inner,
+#app .el-textarea__inner {
+  border-radius: 8px;
+  border-color: #e4e5ec;
+  color: var(--m-ink-2);
+}
+
+#app .el-input__inner:hover,
+#app .el-textarea__inner:hover {
+  border-color: #cdd1da;
+}
+
+#app .el-input__inner:focus,
+#app .el-textarea__inner:focus {
+  border-color: var(--m-brand);
+  box-shadow: 0 0 0 3px rgba(242, 85, 44, .10);
+}
+
+#app .el-form-item__label {
+  color: var(--m-ink-3);
+}
+
+/* ---------------- 选择类控件 ---------------- */
+#app .el-switch.is-checked .el-switch__core {
+  background-color: var(--m-brand) !important;
+  border-color: var(--m-brand) !important;
+}
+
+#app .el-radio__input.is-checked .el-radio__inner,
+#app .el-checkbox__input.is-checked .el-checkbox__inner {
+  background-color: var(--m-brand) !important;
+  border-color: var(--m-brand) !important;
+}
+
+#app .el-radio__input.is-checked + .el-radio__label,
+#app .el-checkbox__input.is-checked + .el-checkbox__label {
+  color: var(--m-brand) !important;
+}
+
+#app .el-radio__inner,
+#app .el-checkbox__inner {
+  border-radius: 4px;
+}
+
+#app .el-radio__inner {
+  border-radius: 50%;
+}
+
+/* ---------------- 分页 / 标签 / 弹窗 ---------------- */
+#app .el-pager li.active,
+#app .el-pagination button:hover {
+  color: var(--m-brand) !important;
+}
+
+#app .el-pager li:hover {
+  color: var(--m-brand) !important;
+}
+
+#app .el-tag {
+  border-radius: 6px;
+}
+
+#app .el-tag--light.el-tag--primary {
+  background: var(--m-brand-soft);
+  border-color: #ffd2c1;
+  color: var(--m-brand);
+}
+
+#app .el-dialog {
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 20px 52px rgba(23, 24, 28, .22);
+}
+
+#app .el-dialog__header {
+  background: #fff !important;
+  border-bottom: 1px solid var(--m-line) !important;
+  padding-bottom: 16px;
+}
+
+#app .el-dialog__title {
+  color: var(--m-ink) !important;
+  font-weight: 600;
+}
+
+#app .el-message-box {
+  border-radius: 14px;
+}
+
+/* ---------------- 页内黄色小标签（口味/规格） ---------------- */
+#app .labItems span,
+#app .flavorBox .flavor .cont .items .labItems span {
+  color: var(--m-brand) !important;
+  background: var(--m-brand-soft) !important;
+  border-color: #ffd2c1 !important;
+  border-radius: 6px !important;
+}
+
+/* ---------------- 登录页 ---------------- */
+/* 参考图：浅米暖底 + 小装饰 + 左右并排（左白色登录卡 + 右侧模拟后台窗口） */
+
+/* 整体铺满视口、浅米暖底 + 右下柔光 + 散落十字/点装饰 */
+.login {
+  background:
+    radial-gradient(800px 500px at 88% 108%, rgba(251, 106, 58, .18) 0%, rgba(251, 106, 58, 0) 55%),
+    radial-gradient(600px 400px at 82% -6%, rgba(255, 180, 130, .30) 0%, rgba(255, 180, 130, 0) 55%),
+    #fff5f0 !important;
+  padding: 0 !important;
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2000;
+  box-sizing: border-box;
+  overflow: hidden;
+  width: auto !important;
+  max-width: none !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* 背景散落装饰：微小黑色十字星芒 + 橙色小圆点 */
+.login::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background-image:
+    radial-gradient(circle at 16% 22%, #3a2e2a .9px, transparent 1.3px),
+    radial-gradient(circle at 38% 68%, #3a2e2a .8px, transparent 1.2px),
+    radial-gradient(circle at 62% 18%, #3a2e2a .9px, transparent 1.3px),
+    radial-gradient(circle at 86% 44%, #3a2e2a 1px, transparent 1.4px),
+    radial-gradient(circle at 72% 82%, #3a2e2a .8px, transparent 1.2px),
+    radial-gradient(circle at 8% 78%, rgba(224,67,26,.35) 3px, transparent 4px),
+    radial-gradient(circle at 92% 14%, rgba(224,67,26,.30) 2.5px, transparent 3.5px);
+  background-size: 100% 100%;
+}
+
+/* 右下大橙色圆角装饰块 */
+.login::after {
+  content: "";
+  position: absolute;
+  right: -100px;
+  bottom: -120px;
+  width: 500px;
+  height: 500px;
+  border-radius: 20%;
+  background: var(--m-brand-grad);
+  opacity: .15;
+  transform: rotate(-14deg);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* —— 卡片区：横向 flex，居中 —— */
+.login-box {
+  position: relative;
+  width: 1100px !important;
+  max-width: calc(100vw - 48px);
+  height: auto !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 56px !important;
+  z-index: 2002;
+}
+
+/* 左侧原宣传图隐藏 */
+.login-box > img {
+  display: none !important;
+}
+
+/* 右侧展示卡：简化到 2 层——底色 + 三圆点 */
+.login-box::before {
+  content: "";
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 470px;
+  border-radius: 20px;
+  border: 2px solid rgba(242, 85, 44, .32);
+  box-sizing: border-box;
+  overflow: hidden;
+  box-shadow: 0 16px 40px rgba(224, 67, 26, .10);
+  background:
+    /* 底色渐变 */
+    linear-gradient(140deg, #fff5f0 0%, #ffe8d8 100%),
+    /* 窗口三圆点 */
+    radial-gradient(circle at 22px 22px, #ffb79a 3px, transparent 4px),
+    radial-gradient(circle at 38px 22px, #ffcbb3 3px, transparent 4px),
+    radial-gradient(circle at 54px 22px, #ffdcc9 3px, transparent 4px);
+  background-repeat: no-repeat;
+}
+
+/* —— 左侧白色登录卡 —— */
+.login-form {
+  position: relative;
+  width: 440px !important;
+  flex: 0 0 440px;
+  background: #ffffff !important;
+  border-radius: 20px !important;
+  padding: 48px 44px 42px !important;
+  box-shadow: 0 24px 60px rgba(224, 67, 26, .12),
+              0 4px 14px rgba(23, 24, 28, .05) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-start !important;
+  align-items: stretch !important;
+  box-sizing: border-box;
+  overflow: visible !important;
+  z-index: 2004;
+}
+
+.login-form .el-form {
+  width: 100% !important;
+  height: auto !important;
+}
+
+/* —— 标题区 —— */
+
+/* 原 logo img 隐藏，用伪元素替代 */
+.login-form-title img {
+  display: none !important;
+}
+
+/* 顶部品牌行：橙色图标（圆角方块 + 三条白线）+ "智膳商家" 文字，同一行 */
+.login-form-title::before {
+  content: "";
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: var(--m-brand-grad);
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(226, 67, 26, .24);
+  background-image:
+    linear-gradient(to bottom, transparent 32%, #fff 32%, #fff 38%, transparent 38%),
+    linear-gradient(to bottom, transparent 52%, #fff 52%, #fff 58%, transparent 58%),
+    linear-gradient(to bottom, transparent 72%, #fff 72%, #fff 78%, transparent 78%);
+  background-size: 16px 2px;
+  background-repeat: no-repeat;
+  background-position: center;
+  margin-right: 10px;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* 让 login-form-title 本身变成 flex row 容纳 icon + brand text */
+.login-form-title {
+  display: flex !important;
+  align-items: center !important;
+  height: auto !important;
+  margin-top: 0 !important;
+  margin-bottom: 22px !important;
+  text-align: left !important;
+  flex-wrap: wrap !important;
+}
+
+/* "智膳商家" 橙色字放在 title-label 前面？title-label 是"商家后台登录" —— 
+   重新组织：title-label 作为主标题保留，但用 ::after 在 icon 后加品牌名 */
+/* 改方案：brand text 用 login-form-title::after */
+.login-form-title::after {
+  content: "智膳商家";
+  color: var(--m-brand);
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  display: inline-block;
+  vertical-align: middle;
+  margin-bottom: 0;
+  order: 0;
+}
+
+/* 主标题「商家后台登录」：放在品牌行下方，单独一行粗黑大字 */
+.login-form-title .title-label {
+  display: block !important;
+  width: 100%;
+  color: var(--m-ink) !important;
+  font-weight: 700 !important;
+  font-size: 26px !important;
+  margin: 18px 0 4px 0 !important;
+  letter-spacing: 0;
+  text-align: left;
+}
+
+/* 副标题「连接订单、商品与经营数据」：跟在主标题下 */
+.login-form-title .title-label::after {
+  content: "连接订单、商品与经营数据";
+  display: block;
+  color: var(--m-ink-3);
+  font-size: 13px;
+  font-weight: 400;
+  margin-top: 6px;
+  margin-bottom: 26px;
+  letter-spacing: .3px;
+}
+
+/* —— 输入框 —— */
+.login-form .el-input__inner {
+  border: 1px solid #e8e4df !important;
+  border-bottom: 1px solid #e8e4df !important;
+  background: #fff !important;
+  height: 46px !important;
+  line-height: 46px !important;
+  border-radius: 10px !important;
+  font-size: 14px;
+  color: var(--m-ink-2);
+  padding-left: 40px !important;
+  transition: border-color .15s, box-shadow .15s;
+}
+
+.login-form .el-input__inner:hover {
+  border-color: #d5cfc8 !important;
+}
+
+.login-form .el-input__inner:focus {
+  border-color: var(--m-brand) !important;
+  background: #fff !important;
+  box-shadow: 0 0 0 3px rgba(242, 85, 44, .10) !important;
+}
+
+.login-form .el-form-item {
+  margin-bottom: 16px !important;
+}
+
+.login-form .el-input__prefix {
+  left: 14px;
+  color: var(--m-brand);
+}
+
+/* —— 登录按钮 —— */
+.login-btn {
+  margin-top: 14px !important;
+  padding: 13px 20px !important;
+  height: 48px;
+  width: 100%;
+  background: var(--m-brand-grad) !important;
+  color: #fff !important;
+  border-radius: 12px !important;
+  border: 0 !important;
+  font-size: 15px;
+  font-weight: 600;
+  box-shadow: 0 8px 22px rgba(226, 67, 26, .28);
+  letter-spacing: 3px;
+}
+
+.login-btn:focus,
+.login-btn:hover {
+  background: var(--m-brand-hover) !important;
+  color: #fff !important;
+  transform: translateY(-1px);
+}
+
+.login-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 4px 14px rgba(226, 67, 26, .22);
+}

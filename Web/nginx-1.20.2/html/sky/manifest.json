@@ -1,6 +1,6 @@
 {
-  "name": "瑞吉外卖",
-  "short_name": "Vue Ts Admin",
+  "name": "智膳 · 商家管理后台",
+  "short_name": "智膳商家端",
   "icons": [
     {
       "src": "./img/icons/android-chrome-192x192.png",
